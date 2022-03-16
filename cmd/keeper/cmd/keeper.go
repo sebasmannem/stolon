@@ -105,10 +105,13 @@ type config struct {
 	pgPort                  string
 	pgAdvertisePort         string
 	pgBinPath               string
+	pgReplConnType          string
 	pgReplAuthMethod        string
+	pgReplSslMode           string
 	pgReplUsername          string
 	pgReplPassword          string
 	pgReplPasswordFile      string
+	pgSUConnType            string
 	pgSUAuthMethod          string
 	pgSUUsername            string
 	pgSUPassword            string
@@ -133,10 +136,13 @@ func init() {
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgPort, "pg-port", "5432", "postgresql instance listening port")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgAdvertisePort, "pg-advertise-port", "", "postgresql instance port from outside. Use it to expose port different than local port with a PAT networking config")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgBinPath, "pg-bin-path", "", "absolute path to postgresql binaries. If empty they will be searched in the current PATH")
+	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplConnType, "pg-repl-connection-type", "host", "postgres replication user connection type. Default is host.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplAuthMethod, "pg-repl-auth-method", "md5", "postgres replication user auth method. Default is md5.")
+	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplSslMode, "pg-repl-ssl-mode", "prefer", "postgres replication user ssl-mode. Default is prefer.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplUsername, "pg-repl-username", "", "postgres replication user name. Required. It'll be created on db initialization. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplPassword, "pg-repl-password", "", "postgres replication user password. Only one of --pg-repl-password or --pg-repl-passwordfile must be provided. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgReplPasswordFile, "pg-repl-passwordfile", "", "postgres replication user password file. Only one of --pg-repl-password or --pg-repl-passwordfile must be provided. Must be the same for all keepers.")
+	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUConnType, "pg-su-connection-type", "host", "postgres superuser connection type. Default is host.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUAuthMethod, "pg-su-auth-method", "md5", "postgres superuser auth method. Default is md5.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUUsername, "pg-su-username", "", "postgres superuser user name. Used for keeper managed instance access and pg_rewind based synchronization. It'll be created on db initialization. Defaults to the name of the effective user running stolon-keeper. Must be the same for all keepers.")
 	CmdKeeper.PersistentFlags().StringVar(&cfg.pgSUPassword, "pg-su-password", "", "postgres superuser password. Only one of --pg-su-password or --pg-su-passwordfile must be provided. Must be the same for all keepers.")
@@ -298,8 +304,10 @@ func (p *PostgresKeeper) getSUConnParams(db, followedDB *cluster.DB) pg.ConnPara
 		"port":             followedDB.Status.Port,
 		"application_name": common.StolonName(db.UID),
 		"dbname":           "postgres",
-		// prefer ssl if available (already the default for postgres libpq but not for golang lib pq)
-		"sslmode": "prefer",
+		// This is currently only used for pgRewind, which requires a SU (repluser might not be enough).
+		// Pgrewind is the only feature using SU over remote connection and with that the only type using SU with sslmode.
+		// Therefore we have skipped extra config option for sslmode for SU, and reuse config for sslmode for repl user instead.
+		"sslmode":          p.pgReplSslMode,
 	}
 	if p.pgSUAuthMethod != "trust" {
 		cp.Set("password", p.pgSUPassword)
@@ -316,7 +324,7 @@ func (p *PostgresKeeper) getReplConnParams(db, followedDB *cluster.DB) pg.ConnPa
 		// prefer ssl if available (already the default for postgres libpq but not for golang lib pq)
 		"sslmode": "prefer",
 	}
-	if p.pgReplAuthMethod != "trust" {
+	if p.pgReplAuthMethod == "md5" {
 		cp.Set("password", p.pgReplPassword)
 	}
 	return cp
@@ -479,9 +487,12 @@ type PostgresKeeper struct {
 	pgPort                string
 	pgAdvertisePort       string
 	pgBinPath             string
+	pgReplConnType        string
 	pgReplAuthMethod      string
+	pgReplSslMode         string
 	pgReplUsername        string
 	pgReplPassword        string
+	pgSUConnType          string
 	pgSUAuthMethod        string
 	pgSUUsername          string
 	pgSUPassword          string
@@ -532,9 +543,12 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 		pgPort:             cfg.pgPort,
 		pgAdvertisePort:    cfg.pgAdvertisePort,
 		pgBinPath:          cfg.pgBinPath,
+		pgReplConnType:     cfg.pgReplConnType,
 		pgReplAuthMethod:   cfg.pgReplAuthMethod,
+		pgReplSslMode:      cfg.pgReplSslMode,
 		pgReplUsername:     cfg.pgReplUsername,
 		pgReplPassword:     cfg.pgReplPassword,
+		pgSUConnType:       cfg.pgSUConnType,
 		pgSUAuthMethod:     cfg.pgSUAuthMethod,
 		pgSUUsername:       cfg.pgSUUsername,
 		pgSUPassword:       cfg.pgSUPassword,
@@ -586,7 +600,7 @@ func (p *PostgresKeeper) dbLocalStateCopy() *DBLocalState {
 }
 
 func (p *PostgresKeeper) usePgrewind(db *cluster.DB) bool {
-	return p.pgSUUsername != "" && p.pgSUPassword != "" && db.Spec.UsePgrewind
+	return p.pgSUUsername != "" && (p.pgSUPassword != "" || p.pgSUAuthMethod == "cert" ) && db.Spec.UsePgrewind
 }
 
 func (p *PostgresKeeper) updateKeeperInfo() error {
@@ -1850,10 +1864,10 @@ func (p *PostgresKeeper) generateHBA(cd *cluster.ClusterData, db *cluster.DB, on
 		// all the keepers will accept connections from every host
 		computedHBA = append(
 			computedHBA,
-			fmt.Sprintf("host all %s %s %s", p.pgSUUsername, "0.0.0.0/0", p.pgSUAuthMethod),
-			fmt.Sprintf("host all %s %s %s", p.pgSUUsername, "::0/0", p.pgSUAuthMethod),
-			fmt.Sprintf("host replication %s %s %s", p.pgReplUsername, "0.0.0.0/0", p.pgReplAuthMethod),
-			fmt.Sprintf("host replication %s %s %s", p.pgReplUsername, "::0/0", p.pgReplAuthMethod),
+			fmt.Sprintf("%s all %s %s %s", p.pgSUConnType, p.pgSUUsername, "0.0.0.0/0", p.pgSUAuthMethod),
+			fmt.Sprintf("%s all %s %s %s", p.pgSUConnType, p.pgSUUsername, "::0/0", p.pgSUAuthMethod),
+			fmt.Sprintf("%s replication %s %s %s", p.pgReplConnType, p.pgReplUsername, "0.0.0.0/0", p.pgReplAuthMethod),
+			fmt.Sprintf("%s replication %s %s %s", p.pgReplConnType, p.pgReplUsername, "::0/0", p.pgReplAuthMethod),
 		)
 	case cluster.SUReplAccessStrict:
 		// only the master keeper (primary instance or standby of a remote primary when in standby cluster mode) will accept connections only from the other standby keepers IPs
@@ -1868,8 +1882,8 @@ func (p *PostgresKeeper) generateHBA(cd *cluster.ClusterData, db *cluster.DB, on
 			for _, address := range addresses {
 				computedHBA = append(
 					computedHBA,
-					fmt.Sprintf("host all %s %s/32 %s", p.pgSUUsername, address, p.pgReplAuthMethod),
-					fmt.Sprintf("host replication %s %s/32 %s", p.pgReplUsername, address, p.pgReplAuthMethod),
+					fmt.Sprintf("%s all %s %s/32 %s", p.pgSUConnType, p.pgSUUsername, address, p.pgReplAuthMethod),
+					fmt.Sprintf("%s replication %s %s/32 %s", p.pgReplConnType, p.pgReplUsername, address, p.pgReplAuthMethod),
 				)
 			}
 		}
@@ -1932,6 +1946,12 @@ func keeper(c *cobra.Command, args []string) {
 	validAuthMethods["trust"] = struct{}{}
 	validAuthMethods["md5"] = struct{}{}
 	validAuthMethods["cert"] = struct{}{}
+	validConnectionTypes := make(map[string]struct{})
+	validConnectionTypes["host"] = struct{}{}
+	validConnectionTypes["hostssl"] = struct{}{}
+	validConnectionTypes["hostnossl"] = struct{}{}
+	validConnectionTypes["hostgssenc"] = struct{}{}
+	validConnectionTypes["hostnogssenc"] = struct{}{}
 	switch cfg.LogLevel {
 	case "error":
 		slog.SetLevel(zap.ErrorLevel)
@@ -1993,6 +2013,12 @@ func keeper(c *cobra.Command, args []string) {
 		}
 	}
 
+	if _, ok := validConnectionTypes[cfg.pgReplConnType]; !ok {
+		log.Fatalf("--pg-repl-connection-type must be one of: host, hostssl, hostnossl, hostgssenc, hostnogssenc")
+	}
+	if _, ok := validConnectionTypes[cfg.pgSUConnType]; !ok {
+		log.Fatalf("--pg-su-connection-type must be one of: host, hostssl, hostnossl, hostgssenc, hostnogssenc")
+	}
 	if _, ok := validAuthMethods[cfg.pgReplAuthMethod]; !ok {
 		log.Fatalf("--pg-repl-auth-method must be one of: md5, password, trust or cert")
 	}

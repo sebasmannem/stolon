@@ -1931,6 +1931,7 @@ func keeper(c *cobra.Command, args []string) {
 	validAuthMethods := make(map[string]struct{})
 	validAuthMethods["trust"] = struct{}{}
 	validAuthMethods["md5"] = struct{}{}
+	validAuthMethods["cert"] = struct{}{}
 	switch cfg.LogLevel {
 	case "error":
 		slog.SetLevel(zap.ErrorLevel)
@@ -1993,7 +1994,7 @@ func keeper(c *cobra.Command, args []string) {
 	}
 
 	if _, ok := validAuthMethods[cfg.pgReplAuthMethod]; !ok {
-		log.Fatalf("--pg-repl-auth-method must be one of: md5, trust")
+		log.Fatalf("--pg-repl-auth-method must be one of: md5, password, trust or cert")
 	}
 	if cfg.pgReplUsername == "" {
 		log.Fatalf("--pg-repl-username is required")
@@ -2017,7 +2018,7 @@ func keeper(c *cobra.Command, args []string) {
 		log.Fatalf("only one of --pg-repl-password or --pg-repl-passwordfile must be provided")
 	}
 	if _, ok := validAuthMethods[cfg.pgSUAuthMethod]; !ok {
-		log.Fatalf("--pg-su-auth-method must be one of: md5, password, trust")
+		log.Fatalf("--pg-su-auth-method must be one of: md5, password, trust or cert")
 	}
 	if cfg.pgSUAuthMethod != "trust" && cfg.pgSUPassword == "" && cfg.pgSUPasswordFile == "" {
 		log.Fatalf("one of --pg-su-password or --pg-su-passwordfile is required")

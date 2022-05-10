@@ -313,7 +313,7 @@ func (p *PostgresKeeper) getSUConnParams(db, followedDB *cluster.DB) pg.ConnPara
 		// Therefore we have skipped extra config option for sslmode for SU, and reuse config for sslmode for repl user instead.
 		"sslmode":          p.pgReplSslMode,
 	}
-	if p.pgSUAuthMethod != "trust" {
+	if p.pgSUAuthMethod == "md5" {
 		cp.Set("password", p.pgSUPassword)
 	}
 	return cp
@@ -342,7 +342,7 @@ func (p *PostgresKeeper) getLocalConnParams() pg.ConnParams {
 		"dbname": "postgres",
 		// no sslmode defined since it's not needed and supported over unix sockets
 	}
-	if p.pgSUAuthMethod != "trust" {
+	if p.pgSUAuthMethod == "md5" {
 		cp.Set("password", p.pgSUPassword)
 	}
 	return cp
@@ -356,7 +356,7 @@ func (p *PostgresKeeper) getLocalReplConnParams() pg.ConnParams {
 		"port":     p.pgPort,
 		// no sslmode defined since it's not needed and supported over unix sockets
 	}
-	if p.pgReplAuthMethod != "trust" {
+	if p.pgReplAuthMethod == "md5" {
 		cp.Set("password", p.pgReplPassword)
 	}
 	return cp
@@ -2063,19 +2063,19 @@ func keeper(c *cobra.Command, args []string) {
 			log.Fatalf("can not utilize --pg-su-auth-method trust and --pg-su-auth-method trust together with --pg-su-password or --pg-su-passwordfile")
 		}
 	}
-	if cfg.pgReplAuthMethod != "trust" && cfg.pgReplPassword == "" && cfg.pgReplPasswordFile == "" {
+	if cfg.pgReplAuthMethod == "md5" && cfg.pgReplPassword == "" && cfg.pgReplPasswordFile == "" {
 		log.Fatalf("one of --pg-repl-password or --pg-repl-passwordfile is required")
 	}
-	if cfg.pgReplAuthMethod != "trust" && cfg.pgReplPassword != "" && cfg.pgReplPasswordFile != "" {
+	if cfg.pgReplAuthMethod == "md5" && cfg.pgReplPassword != "" && cfg.pgReplPasswordFile != "" {
 		log.Fatalf("only one of --pg-repl-password or --pg-repl-passwordfile must be provided")
 	}
 	if _, ok := validAuthMethods[cfg.pgSUAuthMethod]; !ok {
 		log.Fatalf("--pg-su-auth-method must be one of: ident, md5, password, trust or cert")
 	}
-	if cfg.pgSUAuthMethod != "trust" && cfg.pgSUPassword == "" && cfg.pgSUPasswordFile == "" {
+	if cfg.pgSUAuthMethod == "md5" && cfg.pgSUPassword == "" && cfg.pgSUPasswordFile == "" {
 		log.Fatalf("one of --pg-su-password or --pg-su-passwordfile is required")
 	}
-	if cfg.pgSUAuthMethod != "trust" && cfg.pgSUPassword != "" && cfg.pgSUPasswordFile != "" {
+	if cfg.pgSUAuthMethod == "md5" && cfg.pgSUPassword != "" && cfg.pgSUPasswordFile != "" {
 		log.Fatalf("only one of --pg-su-password or --pg-su-passwordfile must be provided")
 	}
 	if _, ok := validAuthMethods[cfg.pgSULocalAuthMethod]; !ok {
@@ -2119,7 +2119,7 @@ func keeper(c *cobra.Command, args []string) {
 		if cfg.pgReplAuthMethod != cfg.pgSUAuthMethod {
 			log.Fatalf("do not support different auth methods when utilizing superuser for replication.")
 		}
-		if cfg.pgSUPassword != cfg.pgReplPassword && cfg.pgSUAuthMethod != "trust" && cfg.pgReplAuthMethod != "trust" {
+		if cfg.pgSUPassword != cfg.pgReplPassword && cfg.pgSUAuthMethod == "md5" && cfg.pgReplAuthMethod == "md5" {
 			log.Fatalf("provided superuser name and replication user name are the same but provided passwords are different")
 		}
 	}

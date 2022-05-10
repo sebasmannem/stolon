@@ -1845,6 +1845,15 @@ func IsMaster(db *cluster.DB) bool {
 	}
 }
 
+// localAuthMethod returns the authentication method that works for local connections
+// cert does not work for local connections, in which case we should fall back to peer authentication
+func localAuthMethod(authMethod string) string {
+	if authMethod == "cert" {
+		return "peer"
+	}
+	return authMethod
+}
+
 // generateHBA generates the instance hba entries depending on the value of
 // DefaultSUReplAccessMode.
 // When onlyInternal is true only rules needed for replication will be setup
@@ -1855,8 +1864,8 @@ func (p *PostgresKeeper) generateHBA(cd *cluster.ClusterData, db *cluster.DB, on
 	// Matched local connections are for postgres database and suUsername user with md5 auth
 	// Matched local replication connections are for replUsername user with md5 auth
 	computedHBA := []string{
-		fmt.Sprintf("local postgres %s %s", p.pgSUUsername, p.pgSUAuthMethod),
-		fmt.Sprintf("local replication %s %s", p.pgReplUsername, p.pgReplAuthMethod),
+		fmt.Sprintf("local postgres %s %s", p.pgSUUsername, localAuthMethod(p.pgSUAuthMethod)),
+		fmt.Sprintf("local replication %s %s", p.pgReplUsername, localAuthMethod(p.pgReplAuthMethod)),
 	}
 
 	switch *cd.Cluster.DefSpec().DefaultSUReplAccessMode {

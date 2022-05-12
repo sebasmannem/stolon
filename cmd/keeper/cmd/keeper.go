@@ -544,20 +544,22 @@ func NewPostgresKeeper(cfg *config, end chan error) (*PostgresKeeper, error) {
 		dataDir: dataDir,
 		walDir:  cfg.walDir,
 
-		pgListenAddress:    cfg.pgListenAddress,
-		pgAdvertiseAddress: cfg.pgAdvertiseAddress,
-		pgPort:             cfg.pgPort,
-		pgAdvertisePort:    cfg.pgAdvertisePort,
-		pgBinPath:          cfg.pgBinPath,
-		pgReplConnType:     cfg.pgReplConnType,
-		pgReplAuthMethod:   cfg.pgReplAuthMethod,
-		pgReplSslMode:      cfg.pgReplSslMode,
-		pgReplUsername:     cfg.pgReplUsername,
-		pgReplPassword:     cfg.pgReplPassword,
-		pgSUConnType:       cfg.pgSUConnType,
-		pgSUAuthMethod:     cfg.pgSUAuthMethod,
-		pgSUUsername:       cfg.pgSUUsername,
-		pgSUPassword:       cfg.pgSUPassword,
+		pgListenAddress:       cfg.pgListenAddress,
+		pgAdvertiseAddress:    cfg.pgAdvertiseAddress,
+		pgPort:                cfg.pgPort,
+		pgAdvertisePort:       cfg.pgAdvertisePort,
+		pgBinPath:             cfg.pgBinPath,
+		pgReplConnType:        cfg.pgReplConnType,
+		pgReplAuthMethod:      cfg.pgReplAuthMethod,
+		pgReplLocalAuthMethod: cfg.pgReplLocalAuthMethod,
+		pgReplSslMode:         cfg.pgReplSslMode,
+		pgReplUsername:        cfg.pgReplUsername,
+		pgReplPassword:        cfg.pgReplPassword,
+		pgSUConnType:          cfg.pgSUConnType,
+		pgSUAuthMethod:        cfg.pgSUAuthMethod,
+		pgSULocalAuthMethod:   cfg.pgSULocalAuthMethod,
+		pgSUUsername:          cfg.pgSUUsername,
+		pgSUPassword:          cfg.pgSUPassword,
 
 		sleepInterval:  cluster.DefaultSleepInterval,
 		requestTimeout: cluster.DefaultRequestTimeout,
@@ -1963,6 +1965,7 @@ func keeper(c *cobra.Command, args []string) {
 	validAuthMethods["md5"] = struct{}{}
 	validAuthMethods["cert"] = struct{}{}
 	validAuthMethods["ident"] = struct{}{}
+	validAuthMethods["peer"] = struct{}{}
 	validConnectionTypes := make(map[string]struct{})
 	validConnectionTypes["host"] = struct{}{}
 	validConnectionTypes["hostssl"] = struct{}{}

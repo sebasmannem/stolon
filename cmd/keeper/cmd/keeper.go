@@ -96,22 +96,22 @@ func (s *DBLocalState) DeepCopy() *DBLocalState {
 type config struct {
 	cmd.CommonConfig
 
-	uid                string
-	dataDir            string
-	debug              bool
-	pgListenAddress    string
-	pgAdvertiseAddress string
-	pgPort             string
-	pgAdvertisePort    string
-	pgBinPath          string
-	pgReplAuthMethod   string
-	pgReplUsername     string
-	pgReplPassword     string
-	pgReplPasswordFile string
-	pgSUAuthMethod     string
-	pgSUUsername       string
-	pgSUPassword       string
-	pgSUPasswordFile   string
+	uid                     string
+	dataDir                 string
+	debug                   bool
+	pgListenAddress         string
+	pgAdvertiseAddress      string
+	pgPort                  string
+	pgAdvertisePort         string
+	pgBinPath               string
+	pgReplAuthMethod        string
+	pgReplUsername          string
+	pgReplPassword          string
+	pgReplPasswordFile      string
+	pgSUAuthMethod          string
+	pgSUUsername            string
+	pgSUPassword            string
+	pgSUPasswordFile        string
 
 	canBeMaster             bool
 	canBeSynchronousReplica bool
@@ -470,18 +470,18 @@ type PostgresKeeper struct {
 
 	bootUUID string
 
-	dataDir            string
-	pgListenAddress    string
-	pgAdvertiseAddress string
-	pgPort             string
-	pgAdvertisePort    string
-	pgBinPath          string
-	pgReplAuthMethod   string
-	pgReplUsername     string
-	pgReplPassword     string
-	pgSUAuthMethod     string
-	pgSUUsername       string
-	pgSUPassword       string
+	dataDir               string
+	pgListenAddress       string
+	pgAdvertiseAddress    string
+	pgPort                string
+	pgAdvertisePort       string
+	pgBinPath             string
+	pgReplAuthMethod      string
+	pgReplUsername        string
+	pgReplPassword        string
+	pgSUAuthMethod        string
+	pgSUUsername          string
+	pgSUPassword          string
 
 	sleepInterval  time.Duration
 	requestTimeout time.Duration
